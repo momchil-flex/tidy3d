@@ -8,8 +8,7 @@ from typing import List, Tuple, Dict
 import numpy as np
 import pydantic.v1 as pydantic
 import pydantic
-
-# import xarray as xr
+import xarray as xr
 
 from ...log import log
 from ...components.base import Tidy3dBaseModel, cached_property
