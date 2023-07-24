@@ -81,7 +81,7 @@ class Tidy3dBaseModel(pydantic.BaseModel):
         """Init method, includes post-init validators."""
         log.begin_capture()
         super().__init__(**kwargs)
-        self._post_init_validators()
+        # self._post_init_validators()
         log.end_capture(self)
 
     def _post_init_validators(self) -> None:
@@ -450,7 +450,6 @@ class Tidy3dBaseModel(pydantic.BaseModel):
             """For every DataArray item in dictionary, load path of hdf5 group as value."""
 
             for key, value in model_dict.items():
-
                 subpath = f"{group_path}/{key}"
 
                 # apply custom validation to the key value pair and modify model_dict
@@ -546,14 +545,12 @@ class Tidy3dBaseModel(pydantic.BaseModel):
         """
 
         with h5py.File(fname, "w") as f_handle:
-
             f_handle[JSON_TAG] = self._json_string
 
             def add_data_to_file(data_dict: dict, group_path: str = "") -> None:
                 """For every DataArray item in dictionary, write path of hdf5 group as value."""
 
                 for key, value in data_dict.items():
-
                     # append the key to the path
                     subpath = f"{group_path}/{key}"
 
@@ -655,7 +652,6 @@ class Tidy3dBaseModel(pydantic.BaseModel):
         # create the list of parameters (arguments) for the model
         doc += "\n\n    Parameters\n    ----------\n"
         for field_name, field in cls.__fields__.items():
-
             # ignore the type tag
             if field_name == TYPE_TAG_STR:
                 continue

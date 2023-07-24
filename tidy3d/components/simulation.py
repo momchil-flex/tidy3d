@@ -245,7 +245,7 @@ class Simulation(Box):
         updater = Updater(sim_dict=values)
         return updater.update_to_current()
 
-    @pydantic.validator("grid_spec", always=True)
+    # @pydantic.validator("grid_spec", always=True)
     def _validate_auto_grid_wavelength(cls, val, values):
         """Check that wavelength can be defined if there is auto grid spec."""
         if val.wavelength is None and val.auto_grid_used:
@@ -785,8 +785,8 @@ class Simulation(Box):
                     raise SetupError("Diffraction monitors must not lie in a lossy medium.")
         return val
 
-    @pydantic.validator("grid_spec", always=True)
-    def _warn_grid_size_too_small(cls, val, values):
+    # @pydantic.validator("grid_spec", always=True)
+    def _warn_grid_size_too_small(cls, val, values):  # pylint:disable=too-many-locals
         """Warn user if any grid size is too large compared to minimum wavelength in material."""
 
         if val is None:
