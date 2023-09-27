@@ -5,7 +5,7 @@ from typing import Dict, Tuple, Union, List
 import numpy as np
 
 # import xarray as xr
-import pydantic.v1 as pydantic
+import pydantic as pydantic
 
 from rich.progress import track
 

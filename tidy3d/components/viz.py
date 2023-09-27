@@ -9,7 +9,7 @@ import time
 # import matplotlib.pylab as plt
 # from matplotlib.patches import PathPatch, ArrowStyle
 # from matplotlib.path import Path
-from numpy import array, concatenate, ones
+from numpy import array, concatenate, ones, inf
 import pydantic as pd
 
 from .types import Ax

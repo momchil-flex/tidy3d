@@ -6,16 +6,14 @@ from functools import wraps
 from typing import List, Callable, Dict, Union, Tuple, Any
 
 import rich
-import pydantic.v1 as pydantic
-from pydantic.v1.fields import ModelField
-import yaml
-import pydantic
+import pydantic as pydantic
 from pydantic.fields import ModelField
 
 # import yaml
 import numpy as np
 import h5py
-import xarray as xr
+
+# import xarray as xr
 
 from .types import ComplexNumber, Literal, TYPE_TAG_STR
 from .data.data_array import DataArray, DATA_ARRAY_MAP
@@ -120,7 +118,7 @@ class Tidy3dBaseModel(pydantic.BaseModel):
         json_encoders = {
             np.ndarray: ndarray_encoder,
             complex: lambda x: ComplexNumber(real=x.real, imag=x.imag),
-            xr.DataArray: DataArray._json_encoder,  # pylint:disable=unhashable-member, protected-access
+            # xr.DataArray: DataArray._json_encoder,  # pylint:disable=unhashable-member, protected-access
         }
         frozen = True
         allow_mutation = False
