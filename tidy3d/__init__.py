@@ -3,6 +3,8 @@
 # grid
 from .components.grid.grid import Grid, Coords
 from .components.grid.grid_spec import GridSpec, UniformGrid, CustomGrid, AutoGrid
+from .components.grid.grid_spec import BenklerConformalMeshSpec, StaircasingConformalMeshSpec
+from .components.grid.grid_spec import HeuristicConformalMeshSpec
 
 # geometry
 from .components.geometry.base import Box, Transformed, ClipOperation, GeometryGroup
@@ -326,4 +328,7 @@ __all__ = [
     "IndexedDataArray",
     "TriangularGridDataset",
     "TetrahedralGridDataset",
+    "BenklerConformalMeshSpec",
+    "StaircasingConformalMeshSpec",
+    "HeuristicConformalMeshSpec",
 ]

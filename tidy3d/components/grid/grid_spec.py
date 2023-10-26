@@ -9,7 +9,7 @@ import pydantic.v1 as pd
 
 from .grid import Coords1D, Coords, Grid
 from .mesher import GradedMesher, MesherType
-from ..base import Tidy3dBaseModel
+from ..base import Tidy3dBaseModel, cached_property
 from ..types import Axis, Symmetry, annotate_type, TYPE_TAG_STR
 from ..source import SourceType
 from ..structure import Structure, StructureType
@@ -17,6 +17,60 @@ from ..geometry.base import Box
 from ...log import log
 from ...exceptions import SetupError
 from ...constants import MICROMETER, C_0, fp_eps
+
+# Default Courant number reduction rate in Benkler's scheme
+DEFAULT_COURANT_REDUCTION_BENKLER = 0.3
+
+
+class ConformalMeshSpec(Tidy3dBaseModel, ABC):
+    """Base class defines conformal mesh specifications."""
+
+    @cached_property
+    def courant_ratio(self) -> float:
+        """The scaling ratio applied to courant number so that the courant number
+        in the simulation is `sim.courant * courant_ratio`.
+        """
+        return 1.0
+
+
+class StaircasingConformalMeshSpec(ConformalMeshSpec):
+    """Simple staircasing scheme based on
+    [Taflove, The Electrical Engineering Handbook 3.629-670 (2005): 15.].
+    """
+
+
+class HeuristicConformalMeshSpec(ConformalMeshSpec):
+    """Slight improvement from the staircasing scheme where the field component near PEC
+    is considered to be outside PEC if it's substantially normal to the interface.
+    """
+
+
+class BenklerConformalMeshSpec(ConformalMeshSpec):
+    """Conformal mesh scheme based on
+    [S. Benkler, IEEE Transactions on Antennas and Propagation 54.6, 1843 (2006)], which is similar
+    to the approach described in [S. Dey, R. Mittra, IEEE Microwave and Guided Wave Letters 7.9, 273 (1997)].
+    """
+
+    courant_reduction_rate: float = pd.Field(
+        DEFAULT_COURANT_REDUCTION_BENKLER,
+        title="Courant number reduction rate",
+        description="In some schemes such as Benkler, accuracy can be improved with "
+        "a smaller Courant number; but simulation time increased as well.",
+        lt=1,
+        ge=0,
+    )
+
+    @cached_property
+    def courant_ratio(self) -> float:
+        """The scaling ratio applied to courant number so that the courant number
+        in the simulation is `sim.courant * courant_ratio`.
+        """
+        return 1 - self.courant_reduction_rate
+
+
+ConformalMeshSpecType = Union[
+    BenklerConformalMeshSpec, StaircasingConformalMeshSpec, HeuristicConformalMeshSpec
+]
 
 
 class GridSpec1d(Tidy3dBaseModel, ABC):
