@@ -816,11 +816,23 @@
                         },
                         {
                             "type": "TwoPhotonAbsorption",
+<<<<<<< HEAD
                             "beta": {
                                 "real": 1.0,
                                 "imag": 0.0
                             },
                             "n0": null
+=======
+                            "beta": 1.0,
+                            "tau": 1.0,
+                            "sigma": 1.0,
+                            "e_e": 1.0,
+                            "e_h": 0.8,
+                            "c_e": 1.0,
+                            "c_h": 1.0,
+                            "n0": null,
+                            "freq0": null
+>>>>>>> 26576d4d (Added free-carrier absorption (FCA) and free-carrier plasma dispersion (FCPD) nonlinearities.)
                         },
                         {
                             "type": "KerrNonlinearity",
