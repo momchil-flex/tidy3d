@@ -471,6 +471,8 @@ def test_run_flux(use_emulated_run):
 def test_adjoint_pipeline(local, use_emulated_run, tmp_path):
     """Test computing gradient using jax."""
 
+    td.config.logging_level = "ERROR"
+
     run_fn = run_local if local else run
 
     sim = make_sim(permittivity=EPS, size=SIZE, vertices=VERTICES, base_eps_val=BASE_EPS_VAL)
@@ -486,6 +488,22 @@ def test_adjoint_pipeline(local, use_emulated_run, tmp_path):
 
     grad_f = grad(f, argnums=(0, 1, 2, 3))
     df_deps, df_dsize, df_dvertices, d_eps_base = grad_f(EPS, SIZE, VERTICES, BASE_EPS_VAL)
+
+    # fail if all gradients close to zero
+    assert not all(
+        np.all(np.isclose(x, 0)) for x in (df_deps, df_dsize, df_dvertices, d_eps_base)
+    ), "No gradients registered"
+
+    # fail if any gradients close to zero
+    assert not any(
+        np.any(np.isclose(x, 0)) for x in (df_deps, df_dsize, df_dvertices, d_eps_base)
+    ), "Some of the gradients are zero unexpectedly."
+
+    # fail if some gradients dont match the pre/2.6 grads (before refactor).
+    if local:
+        assert np.isclose(df_deps, 1278130200000000.0), "local grad doesn't match previous value."
+    else:
+        assert np.isclose(df_deps, 0.031742122), "non-local grad doesn't match previous value."
 
     print("gradient: ", df_deps, df_dsize, df_dvertices, d_eps_base)
 
@@ -1328,11 +1346,18 @@ def _test_polyslab_scale(use_emulated_run):
 
 def test_validate_vertices():
     """Test the maximum number of vertices."""
-    vertices = np.random.rand(MAX_NUM_VERTICES, 2)
-    _ = JaxPolySlab(vertices=vertices, slab_bounds=(-1, 1))
-    vertices = np.random.rand(MAX_NUM_VERTICES + 1, 2)
+
+    def make_vertices(n: int) -> np.ndarray:
+        """Make circular polygon vertices of shape (n, 2)."""
+        angles = np.linspace(0, 2 * np.pi, n)
+        return np.stack((np.cos(angles), np.sin(angles)), axis=-1)
+
+    vertices_pass = make_vertices(MAX_NUM_VERTICES)
+    _ = JaxPolySlab(vertices=vertices_pass, slab_bounds=(-1, 1))
+
     with pytest.raises(pydantic.ValidationError):
-        _ = JaxPolySlab(vertices=vertices, slab_bounds=(-1, 1))
+        vertices_fail = make_vertices(MAX_NUM_VERTICES + 1)
+        _ = JaxPolySlab(vertices=vertices_fail, slab_bounds=(-1, 1))
 
 
 def _test_custom_medium_3D(use_emulated_run):

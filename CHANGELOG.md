@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `ModeData.dispersion` and `ModeSolverData.dispersion` are calculated together with the group index.
 
 ### Changed
+- Internal refactor of `adjoint` plugin to separate `jax`-traced fields from regular `tidy3d` fields.
 
 ### Fixed
 

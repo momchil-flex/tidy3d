@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 from typing import Dict, Tuple, Union, Callable, Optional
-from abc import ABC, abstractmethod
+from abc import ABC
 
 import pydantic.v1 as pd
 import numpy as np
@@ -19,7 +19,7 @@ from ....exceptions import SetupError
 from ....constants import CONDUCTIVITY
 
 from .base import JaxObject
-from .types import JaxFloat, validate_jax_float
+from .types import JaxFloat
 from .data.data_array import JaxDataArray
 from .data.dataset import JaxPermittivityDataset
 
@@ -33,14 +33,6 @@ MAX_NUM_CELLS_CUSTOM_MEDIUM = 250_000
 
 class AbstractJaxMedium(ABC, JaxObject):
     """Holds some utility functions for Jax medium types."""
-
-    def to_tidy3d(self) -> AbstractJaxMedium:
-        """Convert self to tidy3d component."""
-        return self.to_medium()
-
-    @abstractmethod
-    def to_medium(self) -> AbstractJaxMedium:
-        """Convert self to medium."""
 
     def _get_volume_disc(
         self, grad_data: FieldData, sim_bounds: Bound, wvl_mat: float
@@ -151,34 +143,23 @@ class AbstractJaxMedium(ABC, JaxObject):
 class JaxMedium(Medium, AbstractJaxMedium):
     """A :class:`.Medium` registered with jax."""
 
-    permittivity: JaxFloat = pd.Field(
+    _tidy3d_class = Medium
+
+    permittivity_jax: JaxFloat = pd.Field(
         1.0,
         title="Permittivity",
         description="Relative permittivity of the medium. May be a ``jax`` ``Array``.",
-        jax_field=True,
+        stores_jax_for="permittivity",
     )
 
-    conductivity: JaxFloat = pd.Field(
+    conductivity_jax: JaxFloat = pd.Field(
         0.0,
         title="Conductivity",
         description="Electric conductivity. Defined such that the imaginary part of the complex "
         "permittivity at angular frequency omega is given by conductivity/omega.",
         units=CONDUCTIVITY,
-        jax_field=True,
+        stores_jax_for="conductivity",
     )
-
-    @pd.validator("conductivity", always=True)
-    def _passivity_validation(cls, val, values):
-        """Override of inherited validator."""
-        return val
-
-    _sanitize_permittivity = validate_jax_float("permittivity")
-    _sanitize_conductivity = validate_jax_float("conductivity")
-
-    def to_medium(self) -> Medium:
-        """Convert :class:`.JaxMedium` instance to :class:`.Medium`"""
-        self_dict = self.dict(exclude={"type"})
-        return Medium.parse_obj(self_dict)
 
     def store_vjp(
         self,
@@ -212,8 +193,8 @@ class JaxMedium(Medium, AbstractJaxMedium):
 
         return self.copy(
             update=dict(
-                permittivity=vjp_eps,
-                conductivity=vjp_sigma,
+                permittivity_jax=vjp_eps,
+                conductivity_jax=vjp_sigma,
             )
         )
 
@@ -221,6 +202,8 @@ class JaxMedium(Medium, AbstractJaxMedium):
 @register_pytree_node_class
 class JaxAnisotropicMedium(AnisotropicMedium, AbstractJaxMedium):
     """A :class:`.Medium` registered with jax."""
+
+    _tidy3d_class = AnisotropicMedium
 
     xx: JaxMedium = pd.Field(
         ...,
@@ -242,23 +225,6 @@ class JaxAnisotropicMedium(AnisotropicMedium, AbstractJaxMedium):
         description="Medium describing the zz-component of the diagonal permittivity tensor.",
         jax_field=True,
     )
-
-    def to_medium(self) -> AnisotropicMedium:
-        """Convert :class:`.JaxMedium` instance to :class:`.Medium`"""
-        self_dict = self.dict(exclude={"type", "xx", "yy", "zz"})
-        for component in "xyz":
-            field_name = component + component
-            jax_medium = self.components[field_name]
-            self_dict[field_name] = jax_medium.to_medium()
-        return AnisotropicMedium.parse_obj(self_dict)
-
-    @classmethod
-    def from_tidy3d(cls, tidy3d_obj: AnisotropicMedium) -> JaxAnisotropicMedium:
-        """Convert :class:`.Tidy3dBaseModel` instance to :class:`.JaxObject`."""
-        obj_dict = tidy3d_obj.dict(exclude={"type", "xx", "yy", "zz"})
-        for component, tidy3d_medium in tidy3d_obj.components.items():
-            obj_dict[component] = JaxMedium.from_tidy3d(tidy3d_medium)
-        return cls.parse_obj(obj_dict)
 
     def store_vjp(
         self,
@@ -302,9 +268,10 @@ class JaxAnisotropicMedium(AnisotropicMedium, AbstractJaxMedium):
                 vjp_eps_ii += _vjp_eps_ii
                 vjp_sigma_ii += _vjp_sigma_ii
 
-            vjp_fields[component_name] = JaxMedium(
-                permittivity=vjp_eps_ii,
-                conductivity=vjp_sigma_ii,
+            vjp_medium = self.components[component_name]
+            vjp_fields[component_name] = vjp_medium.updated_copy(
+                permittivity_jax=vjp_eps_ii,
+                conductivity_jax=vjp_sigma_ii,
             )
 
         return self.copy(update=vjp_fields)
@@ -318,20 +285,6 @@ class JaxCustomMedium(CustomMedium, AbstractJaxMedium):
     with respect to the field variation.
     """
 
-    permittivity: Optional[JaxDataArray] = pd.Field(
-        None,
-        title="Permittivity",
-        description="Spatial profile of relative permittivity.",
-    )
-
-    conductivity: Optional[JaxDataArray] = pd.Field(
-        None,
-        title="Conductivity",
-        description="Spatial profile Electric conductivity.  Defined such "
-        "that the imaginary part of the complex permittivity at angular "
-        "frequency omega is given by conductivity/omega.",
-    )
-
     eps_dataset: Optional[JaxPermittivityDataset] = pd.Field(
         None,
         title="Permittivity Dataset",
@@ -344,35 +297,13 @@ class JaxCustomMedium(CustomMedium, AbstractJaxMedium):
     @pd.root_validator(pre=True)
     def _pre_deprecation_dataset(cls, values):
         """Don't allow permittivity as a field until we support it."""
-        if values.get("permittivity"):
+        if values.get("permittivity") or values.get("conductivity"):
             raise SetupError(
-                "'permittivity' is not yet supported in adjoint plugin. "
+                "'permittivity' and 'conductivity' are not yet supported in adjoint plugin. "
                 "Please continue to use the 'eps_dataset' field to define the component "
                 "of the permittivity tensor."
             )
         return values
-
-    @pd.root_validator(pre=True)
-    def _deprecation_dataset(cls, values):
-        """Raise deprecation warning if dataset supplied and convert to dataset."""
-        return values
-
-    # @pd.validator("eps_dataset", always=True)
-    # def _is_not_3d(cls, val):
-    #     """Ensure the custom medium pixels contain at least one dimension with one pixel thick."""
-    #     for field_dim in "xyz":
-    #         field_name = f"eps_{field_dim}{field_dim}"
-    #         data_array = val.field_components[field_name]
-    #         coord_lens = [len(data_array.coords[key]) for key in "xyz"]
-    #         dims_len1 = [val == 1 for val in coord_lens]
-    #         if sum(dims_len1) == 0:
-    #             raise SetupError(
-    #                 "For adjoint plugin, the 'JaxCustomMedium' is restricted to a 1D or 2D "
-    #                 "pixellated grid. It may not contain multiple pixels along all 3 dimensions. "
-    #                 f"Detected 3D pixelated grid in '{field_name}' component of 'eps_dataset'."
-    #             )
-
-    #     return val
 
     @pd.validator("eps_dataset", always=True)
     def _is_not_too_large(cls, val):
@@ -414,10 +345,10 @@ class JaxCustomMedium(CustomMedium, AbstractJaxMedium):
 
     def eps_dataarray_freq(self, frequency: float):
         """ "Permittivity array at ``frequency``"""
-        as_custom_medium = self.to_medium()
+        as_custom_medium = self.to_tidy3d()
         return as_custom_medium.eps_dataarray_freq(frequency)
 
-    def to_medium(self) -> CustomMedium:
+    def to_tidy3d(self) -> CustomMedium:
         """Convert :class:`.JaxMedium` instance to :class:`.Medium`"""
         self_dict = self.dict(exclude={"type"})
         eps_field_components = {}
