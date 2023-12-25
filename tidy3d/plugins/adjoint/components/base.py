@@ -170,7 +170,7 @@ class JaxObject(Tidy3dBaseModel):
 
     """ IO """
 
-    # TODO: remove these extra methods
+    # TODO: remove these extra methods. hopefully they will be no longer needed.
 
     def _json(self, *args, **kwargs) -> str:
         """Overwritten method to get the json string to store in the files."""
@@ -182,6 +182,7 @@ class JaxObject(Tidy3dBaseModel):
             """Strip any elements of the dictionary with type "JaxDataArray", replace with tag."""
 
             for key, val in sub_dict.items():
+
                 if isinstance(val, dict):
                     if "type" in val and val["type"] == "JaxDataArray":
                         sub_dict[key] = JAX_DATA_ARRAY_TAG

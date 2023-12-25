@@ -13,8 +13,6 @@ from ....components.types import Bound, Literal
 from ....components.medium import Medium, AnisotropicMedium, CustomMedium
 from ....components.geometry.base import Geometry
 from ....components.data.monitor_data import FieldData
-from ....components.data.dataset import PermittivityDataset
-from ....components.data.data_array import ScalarFieldDataArray
 from ....exceptions import SetupError
 from ....constants import CONDUCTIVITY
 
@@ -285,6 +283,8 @@ class JaxCustomMedium(CustomMedium, AbstractJaxMedium):
     with respect to the field variation.
     """
 
+    _tidy3d_class = CustomMedium
+
     eps_dataset: Optional[JaxPermittivityDataset] = pd.Field(
         None,
         title="Permittivity Dataset",
@@ -325,63 +325,13 @@ class JaxCustomMedium(CustomMedium, AbstractJaxMedium):
 
     @pd.validator("eps_dataset", always=True)
     def _eps_dataset_single_frequency(cls, val):
-        """Override of inherited validator."""
+        """Override of inherited validator. (still needed)"""
         return val
 
     @pd.validator("eps_dataset", always=True)
     def _eps_dataset_eps_inf_greater_no_less_than_one_sigma_positive(cls, val, values):
         """Override of inherited validator."""
         return val
-
-    @pd.validator("permittivity", always=True)
-    def _eps_inf_greater_no_less_than_one(cls, val):
-        """Override of inherited validator."""
-        return val
-
-    @pd.validator("conductivity", always=True)
-    def _conductivity_non_negative_correct_shape(cls, val, values):
-        """Override of inherited validator."""
-        return val
-
-    def eps_dataarray_freq(self, frequency: float):
-        """ "Permittivity array at ``frequency``"""
-        as_custom_medium = self.to_tidy3d()
-        return as_custom_medium.eps_dataarray_freq(frequency)
-
-    def to_tidy3d(self) -> CustomMedium:
-        """Convert :class:`.JaxMedium` instance to :class:`.Medium`"""
-        self_dict = self.dict(exclude={"type"})
-        eps_field_components = {}
-        for dim in "xyz":
-            field_name = f"eps_{dim}{dim}"
-            data_array = self_dict["eps_dataset"][field_name]
-            values = np.array(data_array["values"])
-            coords = data_array["coords"]
-            scalar_field = ScalarFieldDataArray(values, coords=coords)
-            eps_field_components[field_name] = scalar_field
-        eps_dataset = PermittivityDataset(**eps_field_components)
-        self_dict["eps_dataset"] = eps_dataset
-        self_dict["permittivity"] = None
-        self_dict["conductivity"] = None
-        return CustomMedium.parse_obj(self_dict)
-
-    @classmethod
-    def from_tidy3d(cls, tidy3d_obj: CustomMedium) -> JaxCustomMedium:
-        """Convert :class:`.Tidy3dBaseModel` instance to :class:`.JaxObject`."""
-        obj_dict = tidy3d_obj.dict(exclude={"type", "eps_dataset", "permittivity", "conductivity"})
-        eps_dataset = tidy3d_obj.eps_dataset
-        field_components = {}
-        for dim in "xyz":
-            field_name = f"eps_{dim}{dim}"
-            data_array = eps_dataset.field_components[field_name]
-            values = data_array.values.tolist()
-            coords = {key: np.array(val).tolist() for key, val in data_array.coords.items()}
-            field_components[field_name] = JaxDataArray(values=values, coords=coords)
-        eps_dataset = JaxPermittivityDataset(**field_components)
-        obj_dict["eps_dataset"] = eps_dataset
-        obj_dict["permittivity"] = None
-        obj_dict["conductivity"] = None
-        return cls.parse_obj(obj_dict)
 
     def store_vjp(
         self,
