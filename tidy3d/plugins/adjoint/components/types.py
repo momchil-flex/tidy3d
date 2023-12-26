@@ -1,8 +1,23 @@
 """Special types and validators used by adjoint plugin."""
-from typing import Union
+from typing import Union, Any
 
 import numpy as np
-from jax.interpreters.ad import JVPTracer
+
+
+# special handling if we cant import the JVPTracer in the future (so it doesn't break tidy3d).
+try:
+    from jax.interpreters.ad import JVPTracer
+except ImportError:
+    import tidy3d as td
+
+    td.log.warning(
+        "Could not import 'jax.interpreters.ad.JVPTracer'. "
+        "As a temporary fix, 'jax'-traced floats will use 'typing.Any' in their type annotation. "
+        "If you encounter this warning, please file an issue on the Tidy3D front end repository "
+        "as it indicates that the 'adjoint' plugin will need to be upgraded."
+    )
+    JVPTracer = Any
+
 from jax.numpy import ndarray as JaxArrayType
 
 """ Define schema for these jax and numpy types."""
@@ -34,7 +49,10 @@ def _add_schema(arbitrary_type: type, title: str, field_type_str: str) -> None:
 
 
 _add_schema(JaxArrayType, title="JaxArray", field_type_str="jax.numpy.ndarray")
-_add_schema(JVPTracer, title="JVPTracer", field_type_str="jax.interpreters.ad.JVPTracer")
+
+# if the ImportError didnt occur, add the schema
+if JVPTracer is not Any:
+    _add_schema(JVPTracer, title="JVPTracer", field_type_str="jax.interpreters.ad.JVPTracer")
 
 # define types usable as floats including the jax tracers
 JaxArrayLike = Union[NumpyArrayType, JaxArrayType]

@@ -1,6 +1,7 @@
 """Tests adjoint plugin."""
 
 from typing import Tuple, Dict, List
+import builtins
 
 import pytest
 import pydantic.v1 as pydantic
@@ -1725,3 +1726,36 @@ def test_nonlinear_warn(log_capture):
     # nonlinear input_structure (warn)
     sim = sim_base.updated_copy(input_structures=[input_struct_nl])
     test_log_level("WARNING")
+
+
+@pytest.fixture
+def hide_jax(monkeypatch, request):
+    import_orig = builtins.__import__
+
+    def mocked_import(name, *args, **kwargs):
+        if name in ["jax", "jax.interpreters.ad", "jax.interpreters.ad.JVPTracer"]:
+            raise ImportError()
+        return import_orig(name, *args, **kwargs)
+
+    monkeypatch.setattr(builtins, "__import__", mocked_import)
+
+
+def try_tracer_import() -> None:
+    """Try importing `tidy3d.plugins.adjoint.components.types`."""
+    from importlib import reload
+    import tidy3d
+
+    reload(tidy3d.plugins.adjoint.components.types)
+
+
+@pytest.mark.usefixtures("hide_jax")
+def test_jax_tracer_import_fail(tmp_path, log_capture):
+    """Make sure if import error with JVPTracer, a warning is logged and module still imports."""
+    try_tracer_import()
+    assert_log_level(log_capture, "WARNING")
+
+
+def test_jax_tracer_import_pass(tmp_path, log_capture):
+    """Make sure if no import error with JVPTracer, nothing is logged and module imports."""
+    try_tracer_import()
+    assert_log_level(log_capture, None)
