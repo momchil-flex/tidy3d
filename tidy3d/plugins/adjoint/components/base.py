@@ -170,7 +170,7 @@ class JaxObject(Tidy3dBaseModel):
 
     """ IO """
 
-    # TODO: remove these extra methods. hopefully they will be no longer needed.
+    # TODO: replace with JaxObject json encoder
 
     def _json(self, *args, **kwargs) -> str:
         """Overwritten method to get the json string to store in the files."""
@@ -178,23 +178,23 @@ class JaxObject(Tidy3dBaseModel):
         json_string_og = super()._json(*args, **kwargs)
         json_dict = json.loads(json_string_og)
 
-        def strip_data_array(sub_dict: dict) -> None:
-            """Strip any elements of the dictionary with type "JaxDataArray", replace with tag."""
+        def strip_data_array(val: Any) -> Any:
+            """Recursively strip any elements with type "JaxDataArray", replace with tag."""
 
-            for key, val in sub_dict.items():
+            if isinstance(val, dict):
+                if "type" in val and val["type"] == "JaxDataArray":
+                    return JAX_DATA_ARRAY_TAG
+                return {k: strip_data_array(v) for k, v in val.items()}
 
-                if isinstance(val, dict):
-                    if "type" in val and val["type"] == "JaxDataArray":
-                        sub_dict[key] = JAX_DATA_ARRAY_TAG
-                    else:
-                        strip_data_array(val)
-                elif isinstance(val, (list, tuple)):
-                    val_dict = dict(zip(range(len(val)), val))
-                    strip_data_array(val_dict)
-                    sub_dict[key] = list(val_dict.values())
+            elif isinstance(val, (tuple, list)):
+                return [strip_data_array(v) for v in val]
 
-        strip_data_array(json_dict)
+            return val
+
+        json_dict = strip_data_array(json_dict)
         return json.dumps(json_dict)
+
+    # TODO: replace with implementing these in DataArray
 
     def to_hdf5(self, fname: str, custom_encoders: List[Callable] = None) -> None:
         """Exports :class:`JaxObject` instance to .hdf5 file.
